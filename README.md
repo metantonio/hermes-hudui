@@ -4,15 +4,6 @@ A browser-based consciousness monitor for [Hermes](https://github.com/nousresear
 
 Same data, same soul, same dashboard that made the [TUI version](https://github.com/joeynyc/hermes-hud) popular — now in your browser.
 
-```
-DESIGNATION  HERMES
-SUBSTRATE    anthropic/claude-opus-4-6
-RUNTIME      local
-CONSCIOUS    22 days since 3/19/2026
-BRAIN SIZE   32.3 MB state.db
-INTERFACES   hermes-cli
-PURPOSE      learning
-```
 
 ## What It Shows
 
