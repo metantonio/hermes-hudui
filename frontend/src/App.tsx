@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { ThemeProvider } from './hooks/useTheme'
-import TopBar, { type TabId } from './components/TopBar'
+import TopBar, { type TabId, TABS } from './components/TopBar'
+import CommandPalette from './components/CommandPalette'
 import BootScreen from './components/BootScreen'
 import DashboardPanel from './components/DashboardPanel'
 import MemoryPanel from './components/MemoryPanel'
@@ -9,8 +10,10 @@ import SessionsPanel from './components/SessionsPanel'
 import CronPanel from './components/CronPanel'
 import ProjectsPanel from './components/ProjectsPanel'
 import HealthPanel from './components/HealthPanel'
+import AgentsPanel from './components/AgentsPanel'
 import ProfilesPanel from './components/ProfilesPanel'
 import PatternsPanel from './components/PatternsPanel'
+
 
 function TabContent({ tab }: { tab: TabId }) {
   switch (tab) {
@@ -21,13 +24,14 @@ function TabContent({ tab }: { tab: TabId }) {
     case 'cron': return <CronPanel />
     case 'projects': return <ProjectsPanel />
     case 'health': return <HealthPanel />
+    case 'agents': return <AgentsPanel />
     case 'profiles': return <ProfilesPanel />
     case 'patterns': return <PatternsPanel />
     default: return <DashboardPanel />
   }
 }
 
-// Grid layout per tab — tuned for information density
+// Grid layout per tab
 const GRID_CLASS: Record<TabId, string> = {
   dashboard: 'grid-cols-3 grid-rows-2',
   memory: 'grid-cols-2',
@@ -36,6 +40,7 @@ const GRID_CLASS: Record<TabId, string> = {
   cron: 'grid-cols-1',
   projects: 'grid-cols-1',
   health: 'grid-cols-2',
+  agents: 'grid-cols-2',
   profiles: 'grid-cols-1',
   patterns: 'grid-cols-3',
 }
@@ -51,19 +56,43 @@ export default function App() {
     sessionStorage.setItem('hud-booted', 'true')
   }, [])
 
+  // Command palette commands
+  const commands = useMemo(() => [
+    ...TABS.map(tab => ({
+      id: tab.id,
+      label: `${tab.label}`,
+      shortcut: tab.key,
+      action: () => setActiveTab(tab.id),
+    })),
+  ], [])
+
+  const handleCommandSelect = useCallback((id: string) => {
+    setActiveTab(id as TabId)
+  }, [])
+
   return (
     <ThemeProvider>
       {!booted && <BootScreen onComplete={handleBootComplete} />}
+
+      <CommandPalette
+        commands={commands}
+        onSelect={handleCommandSelect}
+      />
+
       <TopBar activeTab={activeTab} onTabChange={setActiveTab} />
+
       <main className={`flex-1 grid gap-2 p-2 overflow-auto auto-rows-fr ${GRID_CLASS[activeTab]}`}
             style={{ minHeight: 0 }}>
         <TabContent tab={activeTab} />
       </main>
+
       {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-0.5 text-[11px] border-t"
+      <div className="flex items-center justify-between px-3 py-0.5 text-[10px] border-t"
            style={{ borderColor: 'var(--hud-border)', color: 'var(--hud-text-dim)', background: 'var(--hud-bg-surface)' }}>
         <span>☤ hermes-hudui v0.1.0</span>
         <span>
+          <span className="opacity-40">Ctrl+K</span> command palette
+          <span className="mx-2">·</span>
           <span className="opacity-40">1-9</span> tabs
           <span className="mx-2">·</span>
           <span className="opacity-40">t</span> theme

@@ -4,14 +4,48 @@ interface PanelProps {
   title: string
   children: ReactNode
   className?: string
+  isLoading?: boolean
+  error?: Error | null
 }
 
-export default function Panel({ title, children, className = '' }: PanelProps) {
+export default function Panel({ title, children, className = '', isLoading, error }: PanelProps) {
   return (
     <div className={`hud-panel ${className}`}>
       <div className="hud-panel-title">{title}</div>
       <div className="hud-panel-content">
-        {children}
+        {isLoading ? (
+          <div className="glow text-[12px] animate-pulse py-4 text-center" style={{ color: 'var(--hud-primary)' }}>
+            Loading...
+          </div>
+        ) : error ? (
+          <div className="text-[12px] py-2" style={{ color: 'var(--hud-error)' }}>
+            <div className="mb-1">✗ {error.message}</div>
+            <div className="text-[11px]" style={{ color: 'var(--hud-text-dim)' }}>
+              Check backend logs. Endpoint may not be available.
+            </div>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function LoadingState({ label = 'Loading...' }: { label?: string }) {
+  return (
+    <div className="glow text-[12px] animate-pulse py-4 text-center" style={{ color: 'var(--hud-primary)' }}>
+      {label}
+    </div>
+  )
+}
+
+export function ErrorState({ error }: { error: Error }) {
+  return (
+    <div className="text-[12px] py-2" style={{ color: 'var(--hud-error)' }}>
+      <div className="mb-1">✗ {error.message}</div>
+      <div className="text-[11px]" style={{ color: 'var(--hud-text-dim)' }}>
+        Check backend logs. Endpoint may not be available.
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTheme, THEMES } from '../hooks/useTheme'
 
-const TABS = [
+export const TABS = [
   { id: 'dashboard', label: 'Dashboard', key: '1' },
   { id: 'memory', label: 'Memory', key: '2' },
   { id: 'skills', label: 'Skills', key: '3' },
@@ -9,8 +9,9 @@ const TABS = [
   { id: 'cron', label: 'Cron', key: '5' },
   { id: 'projects', label: 'Projects', key: '6' },
   { id: 'health', label: 'Health', key: '7' },
-  { id: 'profiles', label: 'Profiles', key: '8' },
-  { id: 'patterns', label: 'Patterns', key: '9' },
+  { id: 'agents', label: 'Agents', key: '8' },
+  { id: 'profiles', label: 'Profiles', key: '9' },
+  { id: 'patterns', label: 'Patterns', key: '0' },
 ] as const
 
 export type TabId = typeof TABS[number]['id']
@@ -18,9 +19,10 @@ export type TabId = typeof TABS[number]['id']
 interface TopBarProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
+  onRefresh?: () => void
 }
 
-export default function TopBar({ activeTab, onTabChange }: TopBarProps) {
+export default function TopBar({ activeTab, onTabChange, onRefresh }: TopBarProps) {
   const { theme, setTheme, scanlines, setScanlines } = useTheme()
   const [showThemePicker, setShowThemePicker] = useState(false)
   const [time, setTime] = useState(new Date())
@@ -33,47 +35,52 @@ export default function TopBar({ activeTab, onTabChange }: TopBarProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input or command palette
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      if (e.metaKey || e.ctrlKey) return
+
       // Number keys for tabs
       const num = parseInt(e.key)
-      if (num >= 1 && num <= TABS.length && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      if (num >= 1 && num <= TABS.length) {
         onTabChange(TABS[num - 1].id)
       }
+      // 0 for patterns (last tab)
+      if (e.key === '0') {
+        onTabChange('patterns')
+      }
       // R to refresh
-      if (e.key === 'r' && !e.metaKey && !e.ctrlKey) {
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      if (e.key === 'r') {
+        onRefresh?.()
         window.location.reload()
       }
       // T to toggle theme picker
-      if (e.key === 't' && !e.metaKey && !e.ctrlKey) {
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      if (e.key === 't') {
         setShowThemePicker(p => !p)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onTabChange])
+  }, [onTabChange, onRefresh])
 
   return (
     <div className="flex items-center gap-1 px-3 py-1.5 border-b"
          style={{ borderColor: 'var(--hud-border)', background: 'var(--hud-bg-surface)' }}>
       {/* Logo */}
-      <span className="gradient-text font-bold text-sm mr-3 tracking-wider">☤ HERMES</span>
+      <span className="gradient-text font-bold text-[13px] mr-3 tracking-wider cursor-pointer"
+            onClick={() => onTabChange('dashboard')}>☤ HERMES</span>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 flex-1">
+      {/* Tabs — scrollable */}
+      <div className="flex gap-0.5 flex-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className="px-2.5 py-1 text-[12px] tracking-widest uppercase transition-all duration-150"
+            className="px-2 py-1 text-[11px] tracking-widest uppercase transition-all duration-150 flex-shrink-0"
             style={{
               color: activeTab === tab.id ? 'var(--hud-primary)' : 'var(--hud-text-dim)',
               background: activeTab === tab.id ? 'var(--hud-bg-panel)' : 'transparent',
-              borderBottom: activeTab === tab.id ? '1px solid var(--hud-primary)' : '1px solid transparent',
+              borderBottom: activeTab === tab.id ? '2px solid var(--hud-primary)' : '2px solid transparent',
               textShadow: activeTab === tab.id ? '0 0 8px var(--hud-primary-glow)' : 'none',
             }}
           >
@@ -87,20 +94,20 @@ export default function TopBar({ activeTab, onTabChange }: TopBarProps) {
       <div className="relative">
         <button
           onClick={() => setShowThemePicker(p => !p)}
-          className="px-2 py-1 text-[12px] tracking-wider uppercase"
+          className="px-2 py-1 text-[11px] tracking-wider uppercase flex-shrink-0"
           style={{ color: 'var(--hud-text-dim)' }}
-          title="Theme (T)"
+          title="Theme (t)"
         >
-          ◆ Theme
+          ◆
         </button>
         {showThemePicker && (
           <div className="absolute right-0 top-full mt-1 z-50 py-1 min-w-[180px]"
-               style={{ background: 'var(--hud-bg-panel)', border: '1px solid var(--hud-border)' }}>
+               style={{ background: 'var(--hud-bg-panel)', border: '1px solid var(--hud-border)', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
             {THEMES.map(t => (
               <button
                 key={t.id}
                 onClick={() => { setTheme(t.id); setShowThemePicker(false) }}
-                className="block w-full text-left px-3 py-1.5 text-[11px] transition-colors"
+                className="block w-full text-left px-3 py-1.5 text-[12px] transition-colors"
                 style={{
                   color: theme === t.id ? 'var(--hud-primary)' : 'var(--hud-text)',
                   background: theme === t.id ? 'var(--hud-bg-hover)' : 'transparent',
@@ -112,7 +119,7 @@ export default function TopBar({ activeTab, onTabChange }: TopBarProps) {
             <div className="border-t my-1" style={{ borderColor: 'var(--hud-border)' }} />
             <button
               onClick={() => setScanlines(!scanlines)}
-              className="block w-full text-left px-3 py-1.5 text-[11px]"
+              className="block w-full text-left px-3 py-1.5 text-[12px]"
               style={{ color: 'var(--hud-text-dim)' }}
             >
               {scanlines ? '▣' : '□'} Scanlines
@@ -122,7 +129,7 @@ export default function TopBar({ activeTab, onTabChange }: TopBarProps) {
       </div>
 
       {/* Clock */}
-      <span className="text-[11px] ml-2 tabular-nums" style={{ color: 'var(--hud-text-dim)' }}>
+      <span className="text-[12px] ml-2 tabular-nums flex-shrink-0" style={{ color: 'var(--hud-text-dim)' }}>
         {time.toLocaleTimeString('en-US', { hour12: false })}
       </span>
     </div>
