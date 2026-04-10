@@ -7,6 +7,7 @@ export const TABS = [
   { id: 'dashboard', label: 'Dashboard', key: '1' },
   { id: 'memory', label: 'Memory', key: '2' },
   { id: 'skills', label: 'Skills', key: '3' },
+  { id: 'chat', label: 'Chat', key: 'c' },
   { id: 'sessions', label: 'Sessions', key: '4' },
   { id: 'cron', label: 'Cron', key: '5' },
   { id: 'projects', label: 'Projects', key: '6' },
@@ -80,6 +81,11 @@ export default function TopBar({ activeTab, onTabChange, selectedProfile, onProf
       // 0 for last tab
       if (e.key === '0') {
         onTabChange('token-costs')
+        return
+      }
+      // C for Chat
+      if (e.key === 'c') {
+        onTabChange('chat')
         return
       }
       // R to refresh

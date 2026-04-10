@@ -15,12 +15,14 @@ import HealthPanel from './components/HealthPanel'
 import AgentsPanel from './components/AgentsPanel'
 import ProfilesPanel from './components/ProfilesPanel'
 import TokenCostsPanel from './components/TokenCostsPanel'
+import ChatPanel from './components/ChatPanel'
 
-function TabContent({ tab }: { tab: TabId }) {
+function TabContent({ tab, profile }: { tab: TabId, profile: string }) {
   switch (tab) {
     case 'dashboard': return <DashboardPanel />
     case 'memory': return <MemoryPanel />
     case 'skills': return <SkillsPanel />
+    case 'chat': return <ChatPanel profile={profile} />
     case 'sessions': return <SessionsPanel />
     case 'cron': return <CronPanel />
     case 'projects': return <ProjectsPanel />
@@ -42,6 +44,7 @@ const GRID_CLASS: Record<TabId, string> = {
   projects: 'grid-cols-1',
   health: 'grid-cols-1 sm:grid-cols-2',
   agents: 'grid-cols-1 lg:grid-cols-2',
+  chat: 'grid-cols-1',
   profiles: 'grid-cols-1',
   'token-costs': 'grid-cols-1 lg:grid-cols-2',
 }
@@ -99,7 +102,7 @@ export default function App() {
 
       <div className="overflow-y-auto" style={{ flex: '1 1 0', height: 0, minHeight: 0 }}>
         <div className={`grid gap-2 p-2 ${GRID_CLASS[activeTab]}`}>
-          <TabContent tab={activeTab} />
+          <TabContent tab={activeTab} profile={selectedProfile} />
         </div>
       </div>
 
