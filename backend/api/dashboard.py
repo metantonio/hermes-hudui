@@ -1,6 +1,7 @@
 """Consolidated dashboard endpoint — lean version for the overview narrative."""
 
 from fastapi import APIRouter
+from starlette.concurrency import run_in_threadpool
 
 from backend.collectors.collect import collect_all
 from backend.collectors.cron import collect_cron
@@ -8,7 +9,7 @@ from backend.collectors.projects import collect_projects
 from backend.collectors.health import collect_health
 from backend.collectors.corrections import collect_corrections
 from backend.collectors.snapshot import load_snapshots
-from .profile_scope import resolve_profile_scope
+from .profile_scope import collect_with_profile
 from .serialize import to_dict
 
 router = APIRouter()
@@ -17,8 +18,11 @@ router = APIRouter()
 @router.get("/dashboard")
 async def get_dashboard(profile: str | None = None):
     """Everything the overview narrative needs — trimmed to essentials."""
-    profile_name, hermes_dir = resolve_profile_scope(profile)
+    return await run_in_threadpool(collect_with_profile, collect_dashboard, profile)
 
+
+def collect_dashboard(hermes_dir: str):
+    """Synchronous collector for dashboard data."""
     state = collect_all(hermes_dir)
     health = collect_health(hermes_dir)
     corrections = collect_corrections(hermes_dir)
@@ -67,7 +71,7 @@ async def get_dashboard(profile: str | None = None):
     cron = to_dict(collect_cron(hermes_dir))
 
     # Projects: only active + dirty for the narrative
-    projects_data = collect_projects() # projects_dir not shared here usually
+    projects_data = collect_projects() 
     active_projects = [
         to_dict(p) for p in projects_data.projects
         if p.is_git and (p.activity_level == "active" or p.dirty_files > 0)
@@ -88,5 +92,4 @@ async def get_dashboard(profile: str | None = None):
         "cron": cron,
         "corrections": to_dict(corrections),
         "snapshots": snapshots,
-        "profile": profile_name,
     }

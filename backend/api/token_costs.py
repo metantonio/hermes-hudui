@@ -4,8 +4,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter
-
+from starlette.concurrency import run_in_threadpool
 from .profile_scope import resolve_profile_scope
 
 router = APIRouter()
@@ -117,54 +116,57 @@ def _calc_cost(tokens: dict, pricing: dict) -> float:
     )
 
 
-@router.get("/token-costs")
-async def get_token_costs(profile: str | None = None):
-    """Token usage and estimated costs, broken down by model."""
-    profile_name, hermes_dir = resolve_profile_scope(profile)
-    db_path = str(Path(hermes_dir) / "state.db")
-
-    if not Path(db_path).exists():
-        return {"error": "state.db not found"}
-
+def _collect_token_data(db_path: str):
+    """Synchronous helper to read data from sqlite."""
+    conn = sqlite3.connect(db_path, timeout=5.0)
+    conn.row_factory = sqlite3.Row
     try:
-        conn = sqlite3.connect(db_path, timeout=5.0)
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-
         today = datetime.now().strftime("%Y-%m-%d")
 
-        # Query all sessions with model column
+        # Query sessions - only columns we need
         cur.execute("""
-            SELECT id, source, started_at, model,
-                   message_count, tool_call_count,
+            SELECT model, started_at, message_count, tool_call_count,
                    input_tokens, output_tokens,
                    cache_read_tokens, cache_write_tokens,
                    reasoning_tokens
             FROM sessions
-            ORDER BY started_at ASC
+            ORDER BY started_at DESC
+            LIMIT 5000
         """)
+        return cur.fetchall(), today
+    finally:
+        conn.close()
+
+
+@router.get("/token-costs")
+async def get_token_costs(profile: str | None = None):
+    """Token usage and estimated costs, broken down by model."""
+    profile_name, hermes_dir = resolve_profile_scope(profile)
+    db_path = Path(hermes_dir) / "state.db"
+
+    if not db_path.exists():
+        return {"error": "state.db not found", "profile": profile_name}
+
+    try:
+        # Offload blocking I/O to a threadpool
+        rows, today = await run_in_threadpool(_collect_token_data, str(db_path))
 
         # Per-model aggregation
         by_model: dict[str, dict] = {}
-
-        # Today aggregation
         today_data = {
             "session_count": 0, "message_count": 0,
             "input_tokens": 0, "output_tokens": 0,
             "cache_read_tokens": 0, "cache_write_tokens": 0,
             "reasoning_tokens": 0, "cost": 0.0,
         }
-
-        # All-time totals
         all_input = all_output = all_cache_r = all_cache_w = all_reasoning = 0
         all_messages = all_tool_calls = 0
         all_cost = 0.0
         total_sessions = 0
-
-        # Daily trend
         daily: dict[str, dict] = {}
 
-        for row in cur.fetchall():
+        for row in rows:
             model = row["model"] or "unknown"
             started_ts = row["started_at"]
             started = datetime.fromtimestamp(started_ts) if started_ts else None
@@ -182,7 +184,7 @@ async def get_token_costs(profile: str | None = None):
             pricing, matched = _get_pricing(model)
             cost = _calc_cost(tokens, pricing)
 
-            # Per-model
+            # Aggregate
             if model not in by_model:
                 by_model[model] = {
                     "model": model, "matched_pricing": matched,
@@ -201,7 +203,6 @@ async def get_token_costs(profile: str | None = None):
             m["reasoning_tokens"] += tokens["reasoning"]
             m["cost"] += cost
 
-            # Today
             if is_today:
                 today_data["session_count"] += 1
                 today_data["message_count"] += row["message_count"] or 0
@@ -212,7 +213,6 @@ async def get_token_costs(profile: str | None = None):
                 today_data["reasoning_tokens"] += tokens["reasoning"]
                 today_data["cost"] += cost
 
-            # All-time
             total_sessions += 1
             all_messages += row["message_count"] or 0
             all_tool_calls += row["tool_call_count"] or 0
@@ -223,19 +223,15 @@ async def get_token_costs(profile: str | None = None):
             all_reasoning += tokens["reasoning"]
             all_cost += cost
 
-            # Daily
             if day not in daily:
                 daily[day] = {"cost": 0.0, "tokens": 0, "sessions": 0}
             daily[day]["cost"] += cost
             daily[day]["tokens"] += tokens["input"] + tokens["output"]
             daily[day]["sessions"] += 1
 
-        # Sort models by cost descending
+        # Post-process
         model_list = sorted(by_model.values(), key=lambda m: -m["cost"])
-
-        # Round costs
-        for m in model_list:
-            m["cost"] = round(m["cost"], 2)
+        for m in model_list: m["cost"] = round(m["cost"], 2)
         today_data["cost"] = round(today_data["cost"], 2)
 
         sorted_days = sorted(daily.keys())

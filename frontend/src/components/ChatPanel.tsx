@@ -27,15 +27,22 @@ export default function ChatPanel({ profile }: ChatPanelProps) {
   
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // States for error handling
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isRetrying, setIsRetrying] = useState(false)
+
   // Load sessions
   const loadSessions = useCallback(async () => {
+    setLoadError(null)
     try {
       const resp = await fetch(`/api/chat/sessions?profile=${profile}`)
-      if (!resp.ok) throw new Error('Failed to fetch sessions')
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`)
       const data = await resp.json()
-      setSessions(data.sessions || [])
+      // The new backend returns an array directly, but we handle both for safety
+      setSessions(Array.isArray(data) ? data : data.sessions || [])
     } catch (e) {
       console.error('Failed to load sessions', e)
+      setLoadError(e instanceof Error ? e.message : 'Connection failed')
     }
   }, [profile])
 
@@ -48,8 +55,14 @@ export default function ChatPanel({ profile }: ChatPanelProps) {
     if (currentSessionId) {
       fetch(`/api/chat/history?session_id=${currentSessionId}&profile=${profile}`)
         .then(r => r.json())
-        .then(data => setMessages(data.messages || []))
-        .catch(e => console.error('History load failed', e))
+        .then(data => {
+           // Handle direct array or wrapped object
+           setMessages(Array.isArray(data) ? data : data.messages || [])
+        })
+        .catch(e => {
+          console.error('History load failed', e)
+          setMessages([{ role: 'system', content: `Failed to load history: ${e.message}` }])
+        })
     } else {
       setMessages([])
     }
@@ -157,6 +170,22 @@ export default function ChatPanel({ profile }: ChatPanelProps) {
             + New Chat
           </button>
           <div className="flex-1 overflow-y-auto">
+            {loadError && (
+              <div className="p-4 text-center">
+                <p className="text-[10px] text-red-400 mb-2">Error: {loadError}</p>
+                <button 
+                  onClick={() => loadSessions()}
+                  className="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {!loadError && sessions.length === 0 && (
+              <div className="p-4 text-center text-[10px] text-zinc-500 italic">
+                No sessions found
+              </div>
+            )}
             {sessions.map(s => (
               <button
                 key={s.id}
